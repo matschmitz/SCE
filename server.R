@@ -12,10 +12,6 @@ function(input, output) {
     b0M1now <- getb0M1now()
     b0M2now <- getb0M2now()
     b1M2now <- getb1M2now()
-    print(b0M1now)
-    print(b0M2now)
-    print(b1M2now)
-    print(input$model)
     
     if(mdlnow == "M1") {
       yhat <- b0M1now
@@ -62,22 +58,20 @@ function(input, output) {
     }
     if(input$plote) {
       gg <- gg + geom_segment(aes(x = student, xend = student, y = y, yend = yhat),
-                              color = red, size = 1)
+                              color = red, size = 1, alpha = .6)
     }
     if(input$plotyhat) {
       gg <- gg + 
-        geom_point(aes(student, yhat), color = green, size = 4)
+        geom_point(aes(student, yhat), color = green, size = 4, alpha = .6)
     }
     if(input$plotyhat & mdlnow == "M1") {
       gg <- gg + 
         geom_hline(yintercept = b0M1now,
-                   color = green, alpha = .8, size = 1)
+                   color = green, size = 1, alpha = .6)
     }
     if(input$ploty) {
-      gg <- gg + geom_point(aes(student, y), color = blue, size = 4)
+      gg <- gg + geom_point(aes(student, y), color = blue, size = 4, alpha = .6)
     }
-    
-    # gg <- gg + geom_hline(yintercept = My + RMSE, color = "red")
     
     gg <- gg +
       scale_y_continuous(breaks = 0:20) +
@@ -92,9 +86,8 @@ function(input, output) {
   output$plot2 <- renderPlot({
     mdlnow <- getmdlnow()
     b0M1now <- getb0M1now()
+    cat("b0_M1=", b0M1now, "\n")
     
-    print(b0M1now)
-    print(input$model)
     
     X <- matrix(1, nrow = nrow(DT))
     b0 <- round(seq(0, 20, by = .2), 2)
@@ -123,8 +116,8 @@ function(input, output) {
     mdlnow <- getmdlnow()
     b0M2now <- getb0M2now()
     b1M2now <- getb1M2now()
-    cat("b0=", b0M2now, "\n")
-    cat("b1=", b1M2now, "\n")
+    cat("b0_M2=", b0M2now, "\n")
+    cat("b1_M2=", b1M2now, "\n")
     cat("Model=", mdlnow, "\n")
     
     X <- cbind(1, DT$hours)
@@ -141,7 +134,7 @@ function(input, output) {
     
     X <- c(0, 0.01, 0.1, 0.5, 1.2**(0:6))
     X <- scales::rescale(X, to = 0:1)
-
+    
     breaks <- c(quantile(GG$SS, X))
     breaks <- breaks[order(breaks)]
     
@@ -155,6 +148,92 @@ function(input, output) {
       coord_cartesian(xlim = c(0, 20), ylim = c(-10, 10)) +
       scale_fill_brewer(name = "SCE", palette = "Spectral") +
       apatheme
+  })
+  
+  output$plot4 <- renderPlot({
+    mdlnow <- getmdlnow()
+    b0M2now <- getb0M2now()
+    b1M2now <- getb1M2now()
+    
+    if(mdlnow == "M2") {
+      X <- cbind(1, DT$hours)
+      B <- rbind(b0M2now, b1M2now)
+      yhat <- X %*% B
+      GG <- data.table::copy(DT)
+      
+      # Compute predictions and errors
+      GG[, yhat := yhat]
+      GG[, e := y - yhat]
+      
+      # Compute square coordinates
+      GG[, xmin := hours]
+      GG[, xmax := hours + abs(e)/20*3]
+      GG[, ymin := min(y, yhat), id]
+      GG[, ymax := max(y, yhat), id]
+      
+      # MSE & RMSE
+      My <- mean(GG$y)
+      n <- nrow(GG)
+      p <- ifelse(mdlnow == "M1", 1, 2)
+      
+      SS <- sum(GG$e**2)
+      MSE <- GG[, sum((y - yhat)**2)/(n - p)]
+      RMSE <- sqrt(MSE)
+      
+      print(MSE)
+      print(RMSE)
+      
+      gg <- ggplot(GG, aes(hours, y))
+      
+      if(input$plotSS) {
+        gg <- gg + geom_rect(aes(xmin = xmin, xmax = xmax, ymin = ymin, ymax = ymax),
+                             fill = grey, alpha = .6) +
+          annotate("text", x = .5, y = 19,
+                   label = paste0("SCE = ", round(SS, 2)))
+      }
+      if(input$plote) {
+        gg <- gg + geom_segment(aes(x = hours, xend = hours, y = y, yend = yhat),
+                                color = red, size = 1, alpha = .6)
+      }
+      if(input$plotyhat) {
+        gg <- gg + 
+          geom_point(aes(hours, yhat), color = green, size = 4, alpha = .6) +
+          geom_abline(intercept = b0M2now, slope = b1M2now,
+                      color = green, size = 1, alpha = .6)
+      }
+      if(input$ploty) {
+        gg <- gg + geom_point(aes(hours, y), color = blue, size = 4, alpha = .6)
+      }
+      
+      gg <- gg +
+        scale_y_continuous(breaks = 0:20) +
+        # expand_limits(x = 8) +
+        coord_fixed(.15, xlim = c(0, 5), ylim = c(0, 20), expand = 0) +
+        labs(y = "notes", x = "heures") +
+        apatheme
+      
+      
+      return(gg)
+    }
+    
+    output$tableData <- renderTable({
+      DT[, .(`étudiant(e)` = student, note = y, heures = hours)]
+    })
+    
+  })
+  
+  output$mdlFit <- renderPrint({
+    mdlnow <- getmdlnow()
+    if(mdlnow == "M1") {
+      mdl <- DT[, lm(y ~ 1)]
+      print(anova(mdl))
+      print(summary(mdl))
+    }
+    if(mdlnow == "M2") {
+      mdl <- DT[, lm(y ~ hours)]
+      print(anova(mdl))
+      print(summary(mdl))
+    }
   })
   
 }

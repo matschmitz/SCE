@@ -1,0 +1,12 @@
+name: parameters
+title: parameters
+username:
+account: matschmitz
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 2920229
+bundleId: 3688853
+url: https://matschmitz.shinyapps.io/parameters/
+when: 1601494334.22956
+asMultiple: FALSE
+asStatic: FALSE
